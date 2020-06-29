@@ -1,0 +1,50 @@
+syntax = "proto3";
+option java_multiple_files=true;
+option java_package = "behave.grpc.stream";
+
+message Message {
+  oneof message {
+    Endpoint endpoint = 1;
+    Request request = 2;
+    Response response = 3;
+    CloseEndpoint close_endpoint = 4;
+  }
+}
+
+message Endpoint {
+  string path = 1;
+}
+
+message Request {
+  string ID = 1;
+  string path = 2;
+  string method = 3;
+  string username = 4;
+  string password = 5;
+  repeated Header headers = 6;
+  repeated Parameter parameters = 7;
+}
+
+message Parameter {
+  string key = 1;
+  repeated string values = 2;
+}
+
+message Header {
+  string key = 1;
+  repeated string values = 2;
+}
+
+message Response {
+  string ID = 1;
+  int32 status = 2;
+  string body = 3;
+  repeated Header headers = 4;
+}
+
+message CloseEndpoint {
+}
+
+service RequestResponseStream {
+  rpc CreateEndpoint(stream Message) returns (stream Message) {}
+}
