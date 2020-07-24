@@ -1,7 +1,23 @@
 (ns behave.core
-  (:gen-class))
+  (:require behave.ontology
+            [behave.dsl.core :refer [parse-model]]
+            behave.engine.core))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+(defn run-test [name]
+  (let [model (parse-model name)]
+    (behave.engine.core/run-test model)))
+
+
+;; TODO:
+
+;; DSL
+;; - negation constraints for alternative paths in if statements
+;; - pruning graph
+
+;; Graphics
+;; - generating dot image from transitons
+
+;; Testing
+;; - determine first label to be received
+;; - determine unspecified values for this label
+;; - send it to the adapter

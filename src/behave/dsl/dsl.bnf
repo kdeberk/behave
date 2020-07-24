@@ -1,0 +1,98 @@
+model = { model-decl } ;
+model-decl = const-decl | struct-decl | fn-decl | label-decl | proc-decl ;
+
+(* Const decl *)
+const-decl = "const" identifier "=" literal ;
+
+(* Type declarations *)
+struct-decl = "struct" identifier "{" struct-field-decls "}" ;
+struct-field-decls = { struct-field-decl } ;
+struct-field-decl = struct-field-names type ;
+struct-field-names = struct-field-name [ "," struct-field-names ] ;
+struct-field-name = identifier ;
+
+(* Label declarations *)
+label-decl = response-decl | stimulus-decl
+response-decl = "response" response-name "(" opt-parameter-list ")" ;
+response-name = identifier ;
+stimulus-decl = "stimulus" stimulus-name type ;
+stimulus-name = identifier ;
+
+(* Function declaration *)
+fn-decl = "func" fn-name "(" opt-parameter-list ")" type "{" expr-start "}" ;
+fn-name = identifier ;
+
+(* Process declaration *)
+proc-decl = "proc" proc-name "(" opt-parameter-list ")" "{" proc-var-stmts proc-body-stmts "}" ;
+proc-name = identifier ;
+proc-var-stmts = { proc-var-stmt } ;
+proc-var-stmt = "var" proc-var-names type ;
+proc-var-names = proc-var-name [ "," proc-var-names ] ;
+proc-var-name = identifier ;
+proc-body-stmts = { proc-body-stmt } ;
+proc-body-stmt = proc-state-stmt | proc-update-stmt | proc-if-stmt | proc-goto-stmt |
+                 proc-spawn-stmt | proc-send-stmt | proc-receive-stmt | proc-choice-stmt |
+                 proc-optionally-stmt ;
+proc-state-stmt = proc-state-name ":" ;
+proc-state-name = identifier ;
+proc-update-stmt = reference "=" expr-start ;
+proc-if-stmt = proc-onlyif-stmt | proc-ifelse-stmt ;
+proc-ifelse-stmt = "if" expr-start "{" proc-body-stmts "}" "else" "{" proc-body-stmts "}" ;
+proc-onlyif-stmt = "if" expr-start "{" proc-body-stmts "}" ;
+proc-goto-stmt = "goto" proc-state-name ;
+proc-spawn-stmt = "spawn" proc-name "(" opt-unnamed-argument-list ")" ;
+proc-send-stmt = "send" response-name "(" opt-expr-start ")" ;
+proc-receive-stmt = proc-receiveandstore-stmt | proc-receiveandignore-stmt
+proc-receiveandstore-stmt = proc-var-name "=" "receive" response-name [ "(" opt-expr-start ")" ] ;
+proc-receiveandignore-stmt = "receive" response-name [ "(" opt-expr-start ")" ] ;
+proc-choice-stmt = "choice" "{" proc-option-stmts "}" ;
+proc-option-stmts = { proc-option-stmt } ;
+proc-option-stmt = "option" "{" proc-body-stmts "}" ;
+proc-optionally-stmt = "optionally" "{" proc-body-stmts "}" ;
+
+(* Parameters *)
+opt-parameter-list = [ parameter-list ] ;
+parameter-list = parameter [ "," parameter-list ] ;
+parameter = parameter-name-list type ;
+parameter-name-list = parameter-name [ "," parameter-name-list ] ;
+parameter-name = identifier ;
+
+(* Arguments *)
+opt-unnamed-argument-list = [ unnamed-argument-list ] ;
+unnamed-argument-list = unnamed-argument [ "," unnamed-argument-list ] ;
+unnamed-argument = expr-start ;
+
+(* Exprs *)
+opt-expr-start = [ expr-start ] ;
+expr-start = expr1 ;
+expr1 = expr2 | opcall1-expr | if-expr ;
+expr2 = var-expr | literal-expr | fncall-expr | opcall2-expr | in-expr ;
+literal-expr = literal ;
+fncall-expr = fn-name "(" opt-argument-list-expr ")" ;
+opt-argument-list-expr = [ argument-list-expr ] ;
+argument-list-expr = argument-expr [ "," argument-list-expr ] ;
+argument-expr = expr1 ;
+if-expr = expr1 "?" expr1 ":" expr1 ;
+opcall1-expr = expr1 op1 expr2 ;
+op1 = "&&" ;
+opcall2-expr = expr2 op2 expr2 ;
+op2 = "+" | "==" | "<" ;
+var-expr = reference ;
+in-expr = (reference | literal) "in" ( incl-range-literal | array-literal ) ;
+
+(* Basic patterns *)
+type = identifier | basic-type | void-type ;
+basic-type = "int" | "string" | "bool" ;
+void-type = "{" "}" ;
+reference = ( arg-identifier | identifier ) [ "." attr-identifier ] ;
+attr-identifier = identifier [ "." attr-identifier ] ;
+identifier = #'[a-zA-Z]' | #'[a-zA-Z][a-zA-Z0-9]*[a-zA-Z0-9]' ;
+arg-identifier = #'\.[a-zA-Z]' | #'\.[a-zA-Z][a-zA-Z0-9]*[a-zA-Z0-9]' ;
+literal = int-literal | string-literal | boolean-literal | array-literal ;
+int-literal = #"[0-9]+" ;
+string-literal = #"'[^']*'" | #'"[^"]*"' | '""' | "''" ;
+boolean-literal = "true" | "false" ;
+incl-range-literal = #"\d+" "..=" #"\d+" ;
+array-literal = "[" opt-array-literal-contents "]" ;
+opt-array-literal-contents = [ array-literal-contents ] ;
+array-literal-contents = ( identifier | literal ) [ "," array-literal-contents ] ;
