@@ -5,6 +5,6 @@
             [behave.dsl.graph :refer [generate-graph]]))
 
 (defn parse-model [name]
-  (let [text (slurp (format "models/%s.model" "httpqueue"))
+  (let [text (slurp (format "models/%s.model" name))
         tree (parse text)]
     (generate-graph (resolve-references (rewrite tree)))))

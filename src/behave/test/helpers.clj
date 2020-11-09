@@ -1,7 +1,5 @@
-(ns behave.dsl.test
-  (:require [clojure.test :refer [deftest is testing run-all-tests]]
-            behave.dsl.rewriter.test
-            behave.dsl.resolver.test))
+(ns behave.test.helpers
+  (:require [clojure.test :refer [deftest is testing run-all-tests]]))
 
 (defmethod clojure.test/assert-expr 'equal? [msg form]
   (let [expected (nth form 1)
@@ -17,5 +15,5 @@
                           :expected nil, :actual e#})
             e#))))
 
-(defn run-tests []
-  (run-all-tests #"behave\.dsl\..*"))
+;; (defn run-tests []
+;;   (run-all-tests #"behave\.dsl\..*"))

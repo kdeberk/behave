@@ -11,6 +11,7 @@
 ;; TODO:
 
 ;; DSL
+;; - domain type
 ;; - negation constraints for alternative paths in if statements
 ;; - pruning graph
 

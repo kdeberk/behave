@@ -42,8 +42,8 @@
     [end (reduce (fn [ts option]
                    (let [[s' ts'] (generate-graph option start gen)]
                      (concat ts ts' (when s'
-                                      [(->InnerTransition s' end)]))))
-                 [(->InnerTransition cur-state start)]
+                                      [(make-transition s' end)]))))
+                 [(make-transition cur-state start)]
                  options)]))
 
 (defmethod generate-graph :state [[_ state] cur-state gen]

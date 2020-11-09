@@ -1,22 +1,29 @@
 model = { model-decl } ;
-model-decl = const-decl | struct-decl | fn-decl | label-decl | proc-decl ;
+model-decl = const-decl | struct-decl | fn-decl | label-decl | proc-decl | domain-decl ;
 
 (* Const decl *)
 const-decl = "const" identifier "=" literal ;
 
-(* Type declarations *)
-struct-decl = "struct" identifier "{" struct-field-decls "}" ;
+(* Domain declarations *)
+domain-decl = "type" identifier "domain" type "[" domain-values "]" ;
+domain-values = domain-value [ "," domain-values ] ;
+domain-value = expr-start ;
+
+(* Struct declarations *)
+struct-decl = "type" identifier "struct" "{" struct-field-decls "}" ;
 struct-field-decls = { struct-field-decl } ;
 struct-field-decl = struct-field-names type ;
 struct-field-names = struct-field-name [ "," struct-field-names ] ;
 struct-field-name = identifier ;
 
 (* Label declarations *)
-label-decl = response-decl | stimulus-decl
+label-decl = response-decl | stimulus-decl | sync-decl ;
 response-decl = "response" response-name "(" opt-parameter-list ")" ;
 response-name = identifier ;
 stimulus-decl = "stimulus" stimulus-name type ;
 stimulus-name = identifier ;
+sync-decl = "sync" sync-name "(" opt-parameter-list ")" ;
+sync-name = identifier ;
 
 (* Function declaration *)
 fn-decl = "func" fn-name "(" opt-parameter-list ")" type "{" expr-start "}" ;
@@ -32,7 +39,7 @@ proc-var-name = identifier ;
 proc-body-stmts = { proc-body-stmt } ;
 proc-body-stmt = proc-state-stmt | proc-update-stmt | proc-if-stmt | proc-goto-stmt |
                  proc-spawn-stmt | proc-send-stmt | proc-receive-stmt | proc-choice-stmt |
-                 proc-optionally-stmt ;
+                 proc-optionally-stmt | proc-sync-stmt ;
 proc-state-stmt = proc-state-name ":" ;
 proc-state-name = identifier ;
 proc-update-stmt = reference "=" expr-start ;
@@ -49,6 +56,7 @@ proc-choice-stmt = "choice" "{" proc-option-stmts "}" ;
 proc-option-stmts = { proc-option-stmt } ;
 proc-option-stmt = "option" "{" proc-body-stmts "}" ;
 proc-optionally-stmt = "optionally" "{" proc-body-stmts "}" ;
+proc-sync-stmt = "sync" sync-name "(" expr-start ")" ;
 
 (* Parameters *)
 opt-parameter-list = [ parameter-list ] ;

@@ -7,6 +7,7 @@
    [clojure.test :as t :refer [deftest is testing run-tests]])
   (:import
    [behave.dsl ParserException]))
+(load "/behave/test/helpers")
 
 (defn make-resolver [rule & args]
   (fn [text]
@@ -15,8 +16,13 @@
      (cons (rewriter/rewrite (parser/parse text rule))
            args))))
 
+;; (deftest test-resolve-model
+;;   (let []))
+;; TODO: fill with some code that contains all possible valid cross references
+
 (deftest test-resolve-field
-  (let [ns {:structs {'someStruct (make-struct 'someStruct)}}]
+  (let [ns {:structs {'someStruct (make-struct 'someStruct)}
+            :domains {'someDomain (->Domain 'someDomain :int [])}}]
 
     (testing "field with int type"
       (is (equal?
@@ -28,10 +34,57 @@
            (->Field 'aField '(:structs someStruct))
            (resolve-references (->Field 'aField 'someStruct) ns))))
 
+    (testing "field with domain type"
+      (is (equal?
+           (->Field 'aField '(:domains someDomain))
+           (resolve-references (->Field 'aField 'someDomain) ns))))
+    
     (testing "field with unknown type"
       (is (thrown-with-msg?
            ParserException #"Could not resolve type unknownType"
            (str (resolve-references (->Field 'aField 'unknownType) ns)))))))
+
+
+(deftest resolve-domain
+  (let [ns {:constants {'someInt (->Constant 'someInt 4 :int)
+                        'someOtherInt (->Constant 'someOtherInt 5 :int)
+                        'someString (->Constant 'someString "foo" :string)}}
+        resolve (make-resolver :domain-decl ns)]
+
+    (testing "domain with only ints"
+      (is (equal?
+           (->Domain 'someDomain :int [1 2 3])
+           (resolve "type someDomain domain int [1, 2, 3]"))))
+
+    (testing "domain with conflicting literal values"
+      (is (thrown-with-msg?
+           ParserException #"Type mismatch: Domain with value :int contains values with types: :string, :bool"
+           (str (resolve "type someDomain domain int [1, 'foo', false]")))))
+
+    (testing "domain with constants"
+      (is (equal?
+           (->Domain 'someDomain :int '[(:constants someInt) (:constants someOtherInt)])
+           (resolve "type someDomain domain int [someInt, someOtherInt]"))))
+
+    (testing "domain with literals and constants"
+      (is (equal?
+           (->Domain 'someDomain :int '[1 (:constants someInt) 7 (:constants someOtherInt)])
+           (resolve "type someDomain domain int [1, someInt, 7, someOtherInt]"))))
+
+    (testing "domain with type mismatching constants"
+      (is (thrown-with-msg?
+           ParserException #"Type mismatch: Domain with value :int contains values with types: :string"
+           (resolve "type someDomain domain int [someInt, someString]"))))
+
+    (testing "domain with type mismatching literals and constants"
+      (is (thrown-with-msg?
+           ParserException #"Type mismatch: Domain with value :int contains values with types: :string"
+           (resolve "type someDomain domain int [1, someString]"))))
+
+    (testing "domain with unknown constant reference"
+      (is (thrown-with-msg?
+           ParserException #"Could not resolve symbol unknownConstant"
+           (resolve "type someDomain domain int [unknownConstant]"))))))
 
 
 (deftest test-resolve-struct
@@ -40,21 +93,21 @@
     (testing "struct with int field"
       (is (equal?
            (make-struct 'someStruct :fields [(->Field 'aField :int)])
-           (resolve "struct someStruct { aField int }"))))
+           (resolve "type someStruct struct { aField int }"))))
 
     (testing "struct with struct field"
       (is (equal?
            (make-struct 'someStruct :fields (->Field 'aField '(:structs someStruct)))
-           (resolve "struct someStruct { aField someStruct }"))))
+           (resolve "type someStruct struct { aField someStruct }"))))
 
     (testing "struct with unknown field"
       (is (thrown-with-msg?
            ParserException #"Could not resolve type unknownType"
-           (str (resolve "struct someStruct { aField unknownType }")))))))
+           (str (resolve "type someStruct struct { aField unknownType }")))))))
 
 
 (deftest test-resolve-function
-  (let [ns {:constants {'C (->Constant 'C 42 :int)}
+  (let [ns {:constants {'someConstant (->Constant 'someConstant 42 :int)}
             :structs {'someStruct (make-struct 'someStruct)}}
         resolve (make-resolver :fn-decl ns)]
 
@@ -82,11 +135,10 @@
              (make-function 'someFunc :bool [] false)
              (resolve "func someFunc() bool { false }"))))
 
-    ;;   ;; (testing "function with struct return type"
-    ;;   ;;   (is (equal?
-    ;;   ;;        (make-function 'someFunc struct [] 1)
-    ;;   ;;        (resolve "func someFunc() someStruct { 1 }"))))
-
+      (testing "function with struct return type"
+        (is (equal?
+             (make-function 'someFunc '(:structs someStruct) [(->Parameter 'a '(:structs someStruct))] '(:parameters a))
+             (resolve "func someFunc(a someStruct) someStruct { a }"))))
 
       (testing "function with unknown return type"
         (is (thrown-with-msg?
@@ -102,8 +154,8 @@
 
       (testing "function with constant reference in expression"
         (is (equal?
-             (make-function 'someFunc :int [(->Parameter 'a :int)] `(~'+ (:parameters ~'a) (:constants ~'C)))
-             (resolve "func someFunc(a int) int { a + C }"))))
+             (make-function 'someFunc :int [(->Parameter 'a :int)] `(~'+ (:parameters ~'a) (:constants ~'someConstant)))
+             (resolve "func someFunc(a int) int { a + someConstant }"))))
 
       (testing "function with invalid reference in expression"
         (is (thrown-with-msg?

@@ -4,21 +4,22 @@
    [behave.dsl.rewriter :refer :all]
    [behave.ontology :refer :all]
    [clojure.test :as t :refer [deftest is testing run-tests]]))
-
-
+(load "/behave/test/helpers")
 
 (deftest rewrite-model
   (testing "rewrite model"
     (is (equal?
          (make-model :constants [(->Constant 'someConstant 42 :int)]
                      :structs   [(make-struct 'someStruct :fields [])]
+                     :domains   [(->Domain 'someDomain :int '((:expr 1) (:expr 2) (:expr 3)))]
                      :functions [(make-function 'someFunction :int [] '(:expr 0))]
                      :stimuli   [(->Stimulus 'someStimulus :int)]
                      :responses [(->Response 'someResponse {})]
                      :processes [(->Process 'someProcess {} {} '(:block) nil {} [])])
          (rewrite (parser/parse
                    "const someConstant = 42
-                    struct someStruct {}
+                    type someStruct struct {}
+                    type someDomain domain int [1, 2, 3]
                     func someFunction() int { 0 }
                     stimulus someStimulus int
                     response someResponse()
@@ -40,7 +41,7 @@
                    {'foo (->Field 'foo :int)
                     'bar (->Field 'bar :int)
                     'baz (->Field 'baz :string)})
-         (rewrite (parser/parse "struct httpResponse { foo, bar int baz string }" :struct-decl))))))
+         (rewrite (parser/parse "type httpResponse struct { foo, bar int baz string }" :struct-decl))))))
 
 
 (deftest rewrite-stimulus-decl
@@ -277,3 +278,14 @@
     (is (equal?
          '(foo bar baz)
          (rewrite (parser/parse "foo, bar, baz" :struct-field-names))))))
+
+
+(deftest rewrite-domain-decl
+  (testing "domain declaration with only literals"
+    (is (equal?
+         (->Domain 'Foo :bool '((:expr true) (:expr false)))
+         (rewrite (parser/parse "type Foo domain bool [true, false]" :domain-decl)))))
+  (testing "domain declaration with only identifiers"
+    (is (equal?
+         (->Domain 'Foo :int '((:expr Bar) (:expr Baz) (:expr Quux)))
+         (rewrite (parser/parse "type Foo domain int [Bar, Baz, Quux]" :domain-decl))))))

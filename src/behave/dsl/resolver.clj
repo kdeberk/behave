@@ -5,7 +5,7 @@
    [clojure.algo.generic.functor :refer [fmap]]
    [clojure.string :refer [starts-with?]])
   (:import
-   [behave.ontology Model Struct Function Stimulus Response Field Parameter Variable Constant]))
+   [behave.ontology Model Domain Struct Function Stimulus Response Field Parameter Variable Constant]))
 (ns-unmap *ns* 'Process)
 (import [behave.ontology Process])
 
@@ -17,8 +17,32 @@
 
 ;; Caught erors:
 ;; - Unknown references to parameters, variables, etc.
-;; - Unknown types. At the moment, only int, bool, string and defined structs are valid types.
+;; - Unknown types. At the moment, only int, bool, string and defined structs and domains are valid types.
 ;; - Type mismatch. Taking inspiration from Go, you cannot cast int to float or vv without explicit casting
+;; - Array types with more than one type. The values in an array or domain can only have a single value.
+
+(defn resolve-symbol-expr [sym ns]
+  "Looks up symbol in namespace fields :arguments, :parameters, :variables and :constants. In that order."
+  (or
+   (when (starts-with? sym ".")
+     (let [sym (symbol (subs (name sym) 1))]
+       (when-let [arg (get (:arguments ns) sym)]
+         `((:arguments ~sym) ~(:type arg)))))
+   (when-let [param (get (:parameters ns) sym)]
+     `((:parameters ~sym) ~(:type param)))
+   (when-let [var (get (:variables ns) sym)]
+     `((:variables ~sym) ~(:type var)))
+   (when-let [const (get (:constants ns) sym)]
+     `((:constants ~sym) ~(:type const)))
+   (parser-error "Could not resolve symbol ~a" sym)))
+
+(defn resolve-type [sym ns]
+  (or
+   (when (get (:structs ns) sym)
+     `(:structs ~sym))
+   (when (get (:domains ns) sym)
+     `(:domains ~sym))
+   (parser-error "Could not resolve type ~a" sym)))
 
 (defn resolve-references-dispatch-fn [item & namespaces]
   (if (seq? item)
@@ -31,7 +55,16 @@
   (reduce (fn [m f]
             (assoc m f (fmap #(resolve-references % m) (get m f))))
           model
-          [:structs :functions :stimuli :responses :processes]))
+          [:structs :domains :functions :stimuli :responses :processes]))
+
+(defmethod resolve-references Domain [domain ns]
+  (let [{:keys [name type values]} domain]
+    (let [values (map #(resolve-references % ns) values)
+          value-types (vec (distinct (map second values)))
+          different (filter #(not (= type %)) value-types)]
+      (if (seq different)
+        (parser-error "Type mismatch: Domain with value ~a contains values with types: ~{~a~^, ~}" type different)
+        (assoc domain :values (map first values))))))
 
 (defmethod resolve-references Struct [struct ns]
   (let [{:keys [fields]} struct]
@@ -40,33 +73,30 @@
 
 (defmethod resolve-references Field [field ns]
   (let [{:keys [type]} field]
-    (cond
-      (keyword? type) field
-      (get (:structs ns) type) (assoc field :type `(:structs ~type))
-      :else (parser-error "Could not resolve type ~a" type))))
+    (if (keyword? type)
+      field
+      (assoc field :type (resolve-type type ns)))))
 
 (defmethod resolve-references Function [func ns]
   (let [{:keys [return-type parameters expr]} func
-        return-type (cond
-                      (keyword? return-type) return-type
-                      (return-type (:structs ns)) `(:structs ~return-type)
-                      :else (parser-error "Could not resolve type ~a" return-type))
+        return-type (if (keyword? return-type)
+                      return-type
+                      (resolve-type return-type (dissoc ns :domains)))
         parameters (fmap #(resolve-references % ns) parameters)
         expr-ns (assoc ns :parameters parameters)
         [expr expr-type] (resolve-references expr expr-ns)]
-    (if (not (= expr-type return-type))
-      (parser-error "Function is declared to return type ~a but expression resolves to type ~a" return-type expr-type)
-      (assoc func
+    (if (not (= return-type expr-type))
+      (parser-error "Function is declared to return type ~a but expression resolves to type ~a" return-type expr-type))
+    (assoc func
              :return-type return-type
              :parameters parameters
-             :expr expr))))
+             :expr expr)))
 
 (defmethod resolve-references Parameter [parameter ns]
   (let [{:keys [type]} parameter]
-    (cond
-      (keyword? type) parameter
-      (get (:structs ns) type) (assoc parameter :type `(:structs ~type))
-      :else (parser-error "Could not resolve type ~a" type))))
+    (if (keyword? type)
+      parameter
+      (assoc parameter :type (resolve-type type (dissoc ns :domains))))))
 
 (defmethod resolve-references Stimulus [stimulus ns]
   (let [{:keys [type]} stimulus]
@@ -124,20 +154,6 @@
       `(:spawn ~name ~@args)
       (parser-error "Cannot use arg types ~a for param types ~a" arg-types spawn-param-types))))
 
-(defn resolve-symbol-expr [sym ns] 
-  (or
-   (when (starts-with? sym ".")
-     (let [sym (symbol (subs (name sym) 1))]
-       (when-let [arg (get (:arguments ns) sym)]
-         `((:arguments ~sym) ~(:type arg)))))
-   (when-let [param (get (:parameters ns) sym)]
-     `((:parameters ~sym) ~(:type param)))
-   (when-let [var (get (:variables ns) sym)]
-     `((:variables ~sym) ~(:type var)))
-   (when-let [const (get (:constants ns) sym)]
-     `((:constants ~sym) ~(:type const)))
-   (parser-error "Could not resolve symbol ~a" sym)))
-
 (defn resolve-dot-expr [[_ struct-name & field-names] ns]
   (letfn [(resolve-ref [ref]
             (cond
@@ -175,7 +191,7 @@
                                         `((~'= ~@args) :bool)
                                         (parser-error "= is not implemented for types ~a" arg-types))
                                    && (if (= arg-types [:bool :bool])
-                                        `((~'&& ~@args) :bool)
+                                        `((~'and ~@args) :bool)
                                         (parser-error "&& needs both args to resolve to a bool, got ~a" arg-types))
                                    if (let [[cond-expr then-expr else-expr] args
                                             [cond-type then-type else-type] arg-types]

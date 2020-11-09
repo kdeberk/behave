@@ -1,5 +1,4 @@
-(ns behave.ontology
-  (:require [behave.dsl.helpers :refer [type-from-value]]))
+(ns behave.ontology)
 
 (ns-unmap *ns* 'Process)
 
@@ -60,14 +59,20 @@
                         {:parameters (name parameters) :variables (name variables)}))))
     (->Process name parameters variables body init-state states transitions)))
 
-(defrecord Model [name constants structs functions stimuli responses processes])
-(defn make-model [& {:keys [name constants structs functions stimuli responses processes]}]
+(defrecord Model [name constants structs domains functions stimuli responses processes])
+(defn make-model [& {:keys [name constants domains structs functions stimuli responses processes]}]
   (let [constants (ensure-map constants)
         structs (ensure-map structs)
+        domains (ensure-map domains)
         functions (ensure-map functions)
         stimuli (ensure-map stimuli)
         responses (ensure-map responses)
         processes (ensure-map processes)]
-    (->Model name constants structs functions stimuli responses processes)))
+    (->Model name constants structs domains functions stimuli responses processes)))
 
 (defrecord StateVector [variables])
+
+(defrecord Domain [name type values])
+
+(defrecord Sync [name params])
+
